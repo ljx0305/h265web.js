@@ -1,5 +1,5 @@
 /********************************************************* 
- * LICENSE: GPL-3.0 https://www.gnu.org/licenses/gpl-3.0.txt
+ * LICENSE: LICENSE-Free_CN.MD
  * 
  * Author: Numberwolf - ChangYanlong
  * QQ: 531365872
@@ -35,9 +35,13 @@ const def = require('./consts');
 const staticMem = require('./utils/static-mem');
 const UI = require('./utils/ui/ui');
 const CacheYUV = require('./decoder/cache');
+const RenderEngine420P = require('./render-engine/webgl-420p');
+
 // const Module = require('./decoder/missile.js');
 // const RawParser = require('./decoder/raw-parser');
 // http://localhost:8080/h265webjs-roi/
+
+// const MAX_RETRY_GET_MISSILE_STATE_COUNT = 3;
 
 const DEFAULT_CONFIG_EXT = {
     moovStartFlag : true,
@@ -49,6 +53,7 @@ const DEFAULT_CONFIG_EXT = {
     checkProbe : true,
     ignoreAudio : 0, // 0 no 1 yes
     probeSize : 4096,
+    autoPlay : false,
 }; // DEFAULT_CONFIG_EXT
 
 /**
@@ -76,6 +81,35 @@ Module.onRuntimeInitialized = () => {
     // _this._playUtilShowMask();
 }; // onRuntimeInitialized
 
+window.addEventListener("wasmLoaded", function()
+{
+    // document.domain = COMMON_DEF.RUN_DOMAIN;
+    // document.domain = RUN_DOMAIN;
+    global.STATIC_MEM_wasmDecoderState = 1;
+    console.log("wasmLoaded");
+    // Run();
+    // let worker1 = new Worker(AVCOMMON.GetScriptPath(function() {
+    //     // importScripts('http://localhost:8080/VideoMissile/VideoMissilePlayer/dist/missile-v20220421-worker.js');
+    //     let _self = self;
+    //     self.onmessage = (event) => {
+    //         console.log("dc-worker.js ==> onmessage ", event);
+    //         let offset = Module._malloc(1);
+    //     };
+    // }));
+    // worker1.postMessage("aaa");
+
+    // let worker1 = new Worker('./dist/dc-worker-dist.js');
+    // setTimeout(function() {
+    //     worker1.postMessage("aaa");
+    // }, 2000);
+    
+}); // wasmLoaded
+
+global.onWASMLoaded = function() {
+    global.STATIC_MEM_wasmDecoderState = 1;
+    console.log("onWASMLoaded");
+};
+
 class H265webjsModule {
     // static myStaticProp = 42;
 
@@ -101,6 +135,16 @@ class H265webjsModule {
         }; // hlsConf
 
         // this.uiObj = new UI.UI();
+
+        // this.snapshotCanvas = null;
+        this.snapshotCanvasContext = null;
+        this.snapshotYuvLastFrame = {
+            width: 0,
+            height: 0,
+            luma: null,
+            chromaB: null,
+            chromaR: null
+        }; // snapshotYuvLastFrame
 
         // val
         this.videoURL = videoURL;
@@ -170,6 +214,8 @@ class H265webjsModule {
 
         // func
         this.feedMP4Data = null;
+        this.workerFetch = null;
+        this.workerParse = null;
 
         // Event
         // param pts
@@ -188,6 +234,7 @@ class H265webjsModule {
         this.onCloseFullScreen = null;
         this.onNetworkError = null;
         this.onMakeItReady = null;
+        this.onPlayState = null;
 
         this.filterConfigParams();
         console.log("configFormat ==> ", this.configFormat);
@@ -207,7 +254,7 @@ class H265webjsModule {
 
         this.screenW = window.screen.width;
         this.screenH = window.screen.height;
-    }
+    } // constructor
 
     filterConfigParams() {
         if (this.configFormat.extInfo.checkProbe === undefined || this.configFormat.extInfo.checkProbe === null) {
@@ -317,7 +364,47 @@ class H265webjsModule {
         } else {
             this.player.release(); // keep
         }
+
+        if (this.snapshotCanvasContext !== undefined &&
+            this.snapshotCanvasContext !== null) 
+        {
+            RenderEngine420P.releaseContext(this.snapshotCanvasContext);
+            this.snapshotCanvasContext = null;
+
+            if (this.snapshotYuvLastFrame !== undefined && 
+                this.snapshotYuvLastFrame !== null) 
+            {
+                this.snapshotYuvLastFrame.luma     = null;
+                this.snapshotYuvLastFrame.chromaB  = null;
+                this.snapshotYuvLastFrame.chromaR  = null;
+
+                this.snapshotYuvLastFrame.width    = 0;
+                this.snapshotYuvLastFrame.height   = 0;
+            }
+        } // end free snapshot info
+
+        if (this.workerFetch !== undefined && this.workerFetch !== null) {
+            this.workerFetch.postMessage({
+                cmd: 'stop',
+                params: '',
+            });
+            this.workerFetch.onmessage = null;
+        }
+
+        if (this.workerParse !== undefined && this.workerParse !== null) {
+            this.workerParse.postMessage({
+                cmd: 'stop',
+                params: '',
+            });
+            this.workerParse.onmessage = null;
+        }
+        
+        this.workerFetch = null;
+        this.workerParse = null;
+
         this.configFormat.extInfo.readyShow = true;
+
+        window.onclick = document.body.onclick = null;
         return true;
     }
 
@@ -397,6 +484,66 @@ class H265webjsModule {
         mediaInfoData.meta.isHEVC = this.playParam.videoCodec === 0;
         return mediaInfoData;
     }
+
+    snapshot(canvasDom=null)
+    {
+        if (canvasDom === null) {
+            return null;
+        }
+
+        let _this = this; // this.snapshotCanvas
+        if (this.playParam !== undefined && this.playParam !== null)
+        {
+            // this.snapshotCanvas = canvasDom;
+
+            // audioNone: false // 是否不包含音频轨
+            // durationMs: 600000 // 时长 毫秒级
+            // fps: 25 // 帧率
+            // sampleRate: 44100 // 音频采样率
+            // size: // 视频分辨率
+            //     height: 720
+            //     width: 1280
+            // videoCodec: 0 // 0:HEVC/H.265 1:其他编码
+            // isHEVC: true // 是否是H265编码视频
+
+            if (this.playParam.videoCodec === 0) { // HEVC
+                this.player.setScreen(true);
+
+                canvasDom.width = this.snapshotYuvLastFrame.width;
+                canvasDom.height = this.snapshotYuvLastFrame.height;
+                console.log("this.snapshotYuvLastFrame", this.snapshotYuvLastFrame);
+
+                // RenderEngine420P
+                if (this.snapshotCanvasContext === undefined || 
+                    this.snapshotCanvasContext === null)
+                {
+                    this.snapshotCanvasContext = RenderEngine420P.setupCanvas(
+                        canvasDom, 
+                        {
+                            preserveDrawingBuffer: false
+                        }
+                    ); // snapshotCanvasContext
+                }
+
+                RenderEngine420P.renderFrame(
+                    this.snapshotCanvasContext,
+                    this.snapshotYuvLastFrame.luma, 
+                    this.snapshotYuvLastFrame.chromaB, 
+                    this.snapshotYuvLastFrame.chromaR,
+                    this.snapshotYuvLastFrame.width, 
+                    this.snapshotYuvLastFrame.height);
+            } else { // AVC
+                canvasDom.width = this.playParam.size.width;
+                canvasDom.height = this.playParam.size.height;
+                canvasDom.getContext('2d').drawImage(
+                    this.player.videoTag, 
+                    0, 0, canvasDom.width, canvasDom.height);
+                
+            } // end check codec
+        } // check params exist
+
+        return null;
+    } // snapshot
 
     _seekHLS(clickedValue, _self, callback) {
         // alert("seekHLS" + clickedValue);
@@ -520,6 +667,7 @@ class H265webjsModule {
     fullScreen() {
         this.autoScreenClose = true;
 
+        console.log("js debug fullScreen => ", this.player.vCodecID, this.player);
         if (this.player.vCodecID === def.V_CODEC_NAME_HEVC) {
             let glCanvasBox = document
                 .querySelector('#' + this.configFormat.playerId);
@@ -570,7 +718,35 @@ class H265webjsModule {
         }
 
         // this.autoScreenClose = true;
-    }
+    } // closeFullScreen
+
+    playNextFrame() {
+        this.pause();
+        if (this.playParam !== undefined && this.playParam !== null)
+        {
+            // this.snapshotCanvas = canvasDom;
+
+            // audioNone: false // 是否不包含音频轨
+            // durationMs: 600000 // 时长 毫秒级
+            // fps: 25 // 帧率
+            // sampleRate: 44100 // 音频采样率
+            // size: // 视频分辨率
+            //     height: 720
+            //     width: 1280
+            // videoCodec: 0 // 0:HEVC/H.265 1:其他编码
+            // isHEVC: true // 是否是H265编码视频
+
+            if (this.playParam.videoCodec === 0) { // HEVC
+                this.player.playYUV();
+            } else {
+                this.player.nativeNextFrame();
+            }
+
+            return true;
+        } // this.playParam
+
+        return false;
+    } // showNextFrame
 
     /**********
      Private
@@ -853,8 +1029,10 @@ class H265webjsModule {
             {
                 console.warn("videoFrame GET:", secVideoIdx, videoFrame.length);
                 // 首帧显示渲染
-                if (this.configFormat.extInfo.readyShow) {
-                    if (this.configFormat.type === def.PLAYER_IN_TYPE_M3U8) {
+                if (this.configFormat.extInfo.readyShow) 
+                {
+                    if (this.configFormat.type === def.PLAYER_IN_TYPE_M3U8) 
+                    {
                         this.configFormat.extInfo.readyShow = false;
                         // this.onReadyShowDone && this.onReadyShowDone();
                     } else {
@@ -868,8 +1046,15 @@ class H265webjsModule {
                             //     this.onReadyShowDone && this.onReadyShowDone();
                             // }
                         } else {
-                            if (this.player.cacheYuvBuf.getState() != CACHE_APPEND_STATUS_CODE.NULL) {
-                                this.player.playFrameYUV(true, true);
+                            if (this.player.cacheYuvBuf.getState() != CACHE_APPEND_STATUS_CODE.NULL) 
+                            {
+                                // if (this.player.playYUV(true, true) === true) {
+                                //     this.configFormat.extInfo.readyShow = false;
+                                //     this.onReadyShowDone && this.onReadyShowDone();
+                                // }
+                            }
+                            if (this.player.playYUV(true, true) === true) 
+                            {
                                 this.configFormat.extInfo.readyShow = false;
                                 this.onReadyShowDone && this.onReadyShowDone();
                             }
@@ -912,7 +1097,7 @@ class H265webjsModule {
                 return;
             }
         }, 5);
-    }
+    } // _avFeedMP4Data
 
     _makeMP4Player() {
         let _this = this;
@@ -934,6 +1119,7 @@ class H265webjsModule {
             /*
              * PLAYER_CORE_TYPE_CNATIVE c demuxer decoder
              */
+            console.log("_makeMP4Player _cDemuxDecoderEntry");
             this._cDemuxDecoderEntry();
 
         } else {
@@ -959,13 +1145,14 @@ class H265webjsModule {
         }
 
         return 0;
-    } // end
+    } // _makeMP4Player end
 
     /**
      * 内部公共调用的一个方法 创建播放器
      */
     _makeMP4PlayerViewEvent(
-        durationMs, fps, sampleRate, size, audioNone=false, videoCodec=null) {
+        durationMs, fps, sampleRate, size, audioNone=false, videoCodec=null) 
+    {
         let _this = this;
         // set play params in this entry
         this.playParam.durationMs = durationMs;
@@ -1003,6 +1190,7 @@ class H265webjsModule {
             }
         }
 
+        console.log("start init player");
         this.player = Player({
             width: this.configFormat.playerW,
             height: this.configFormat.playerH,
@@ -1033,9 +1221,27 @@ class H265webjsModule {
         this.player.onSeekFinish = () => {
             if (_this.onSeekFinish != null) _this.onSeekFinish();
         };
-        this.player.onRender = (width, height, imageBufferY, imageBufferB, imageBufferR) => {
-            if (this.onRender != null) {
-                this.onRender(width, height, imageBufferY, imageBufferB, imageBufferR);
+        this.player.onRender = (width, height, imageBufferY, imageBufferB, imageBufferR) => 
+        {
+            _this.snapshotYuvLastFrame.luma     = null;
+            _this.snapshotYuvLastFrame.chromaB  = null;
+            _this.snapshotYuvLastFrame.chromaR  = null;
+
+            _this.snapshotYuvLastFrame.width    = width;
+            _this.snapshotYuvLastFrame.height   = height;
+            _this.snapshotYuvLastFrame.luma     = new Uint8Array(imageBufferY);
+            _this.snapshotYuvLastFrame.chromaB  = new Uint8Array(imageBufferB);
+            _this.snapshotYuvLastFrame.chromaR  = new Uint8Array(imageBufferR);
+
+            // if (_this.snapshotCanvas !== undefined && 
+            //     _this.snapshotCanvas !== null) 
+            // {
+            //     _this.snapshotCanvas.width = width;
+            //     _this.snapshotCanvas.height = height;
+            // }
+
+            if (_this.onRender != null) {
+                _this.onRender(width, height, imageBufferY, imageBufferB, imageBufferR);
             }
         };
         this.player.onLoadCache = () => {
@@ -1059,7 +1265,7 @@ class H265webjsModule {
                 _this.onReadyShowDone && _this.onReadyShowDone();
             }
         }
-    }
+    } // _makeMP4PlayerViewEvent
 
     _makeNativePlayer(durationMs, fps, sampleRate, size, audioNone, videoCodec) {
         let _this = this;
@@ -1086,7 +1292,8 @@ class H265webjsModule {
             playerId: this.configFormat.playerId,
             audioNone: audioNone,
             token: this.configFormat.token,
-            videoCodec: videoCodec
+            videoCodec: videoCodec,
+            autoPlay: this.configFormat.extInfo.autoPlay,
         });
         this.player.makeIt(this.videoURL);
 
@@ -1108,7 +1315,11 @@ class H265webjsModule {
             _this.onLoadFinish && _this.onLoadFinish();
             _this.onReadyShowDone && _this.onReadyShowDone();
         };
-    }
+
+        this.player.onPlayState = (status) => {
+            _this.onPlayState && _this.onPlayState(status);
+        }; // onPlayState
+    } // _makeNativePlayer
 
     _initMp4BoxObject() {
         // demux mp4
@@ -1135,7 +1346,7 @@ class H265webjsModule {
                 this._makeNativePlayer(durationMs, fps, sampleRate, size, this.mp4Obj.audioNone, videoCodec);
             }
         };
-    }
+    } // _initMp4BoxObject
 
     /********************************************************************
      ********************************************************************
@@ -1258,9 +1469,11 @@ class H265webjsModule {
      * Demuxer + Decoder
      *
      */
-    _cDemuxDecoderEntry() {
-        alert("_cDemuxDecoderEntry" + this.configFormat.type);
+    _cDemuxDecoderEntry(retry=0) {
+        console.log(
+            "_cDemuxDecoderEntry ==> ", this.configFormat.type, retry);
         let _this = this;
+        let probeSuccessed = false;
         // let playerConfBase = {
         //     width: this.configFormat.playerW,
         //     height: this.configFormat.playerH,
@@ -1271,7 +1484,6 @@ class H265webjsModule {
         // };
         let controller = new AbortController();
         let signal = controller.signal;
-        // let isReportNetworkErr = true;
 
         let playerConfig = {
             width: this.configFormat.playerW,
@@ -1282,6 +1494,8 @@ class H265webjsModule {
             checkProbe: this.configFormat.extInfo.checkProbe,
             ignoreAudio : this.configFormat.extInfo.ignoreAudio,
             playMode: this.playMode,
+            autoPlay: this.configFormat.extInfo.autoPlay,
+            defaultFps: this.configFormat.extInfo.rawFps
         };
         this.player = new CNativeCore.CNativeCore(playerConfig); // end create player
 
@@ -1301,7 +1515,8 @@ class H265webjsModule {
          *
          */
         this.player.onProbeFinish = () => { // GetRealDurationOfLastFramePTS(fps, this.mp4Obj.getDurationMs());
-            console.log("first probe ", _this.player.mediaInfo, _this.player.config);
+            probeSuccessed = true;
+            console.log("first probe ", _this.player.config);
             _this.playParam.fps          = _this.player.config.fps;
             _this.playParam.durationMs   = GetRealDurationOfLastFramePTS(_this.playParam.fps, _this.player.duration * 1000.0);
 
@@ -1388,9 +1603,27 @@ class H265webjsModule {
             if (this.onLoadCacheFinshed != null) this.onLoadCacheFinshed();
         };
 
-        this.player.onRender = (width, height, imageBufferY, imageBufferB, imageBufferR) => {
-            if (this.onRender != null) {
-                this.onRender(width, height, imageBufferY, imageBufferB, imageBufferR);
+        this.player.onRender = (width, height, imageBufferY, imageBufferB, imageBufferR) => 
+        {
+            _this.snapshotYuvLastFrame.luma     = null;
+            _this.snapshotYuvLastFrame.chromaB  = null;
+            _this.snapshotYuvLastFrame.chromaR  = null;
+
+            _this.snapshotYuvLastFrame.width    = width;
+            _this.snapshotYuvLastFrame.height   = height;
+            _this.snapshotYuvLastFrame.luma     = new Uint8Array(imageBufferY);
+            _this.snapshotYuvLastFrame.chromaB  = new Uint8Array(imageBufferB);
+            _this.snapshotYuvLastFrame.chromaR  = new Uint8Array(imageBufferR);
+
+            // if (_this.snapshotCanvas !== undefined && 
+            //     _this.snapshotCanvas !== null) 
+            // {
+            //     _this.snapshotCanvas.width = width;
+            //     _this.snapshotCanvas.height = height;
+            // }
+
+            if (_this.onRender != null) {
+                _this.onRender(width, height, imageBufferY, imageBufferB, imageBufferR);
             }
         };
 
@@ -1455,16 +1688,35 @@ class H265webjsModule {
                     console.log("start pump", reader);
                     return reader.read().then(function(result) {
                         if (result.done) {
-                            // alert("========== RESULT DONE ===========");
-                            fetchFin = true;
-                            _this.player && _this.player.pushDone();
-                            // window.clearInterval(networkInterval);
-                            // 一切结束后启动定时器
-                            // playInterval = window.setInterval(() => {
-                            //     console.log("---------------- loop", new Date());
-                            //     readingLoopWithF32();
-                            // }, 50);
-                            return;
+                            if (probeSuccessed === true) {
+                                // alert("========== RESULT DONE ===========");
+                                fetchFin = true;
+                                // _this.player && _this.player.pushDone();
+                                // window.clearInterval(networkInterval);
+                                // 一切结束后启动定时器
+                                // playInterval = window.setInterval(() => {
+                                //     console.log("---------------- loop", new Date());
+                                //     readingLoopWithF32();
+                                // }, 50);
+                            } else {
+                                let releaseRet = _this.player.release();
+                                console.log("_cDemuxDecoderEntry releaseRet ===> 3 ", releaseRet);
+                                _this.player = null;
+                                // _this._makeNativePlayer(
+                                //     _this.playParam.durationMs, _this.playParam.fps, 
+                                //     _this.playParam.sampleRate, _this.playParam.size, 
+                                //     false, _this.playParam.videoCodec);
+                                if (retry < def.PLAYER_CNATIVE_VOD_RETRY_MAX) {
+                                    console.log("retry now _cDemuxDecoderEntry", retry);
+                                    retry += 1;
+                                    _this._cDemuxDecoderEntry(retry);
+                                    return true;
+                                } else {
+                                    _this._mp4EntryVodStream();
+                                    return false;
+                                }
+                            }
+                            return true;
                         }
 
                         // array buffer
@@ -1474,14 +1726,21 @@ class H265webjsModule {
                             let pushRet = _this.player.pushBuffer(chunk);
                             if (pushRet < 0) {
                                 let releaseRet = _this.player.release();
-                                console.log("releaseRet ===> 2 ", releaseRet);
+                                console.log("_cDemuxDecoderEntry releaseRet ===> 2 ", releaseRet);
                                 _this.player = null;
                                 // _this._makeNativePlayer(
                                 //     _this.playParam.durationMs, _this.playParam.fps, 
                                 //     _this.playParam.sampleRate, _this.playParam.size, 
                                 //     false, _this.playParam.videoCodec);
-                                _this._mp4EntryVodStream();
-                                return false;
+                                if (retry < def.PLAYER_CNATIVE_VOD_RETRY_MAX) {
+                                    console.log("retry now _cDemuxDecoderEntry", retry);
+                                    retry += 1;
+                                    _this._cDemuxDecoderEntry(retry);
+                                    return true;
+                                } else {
+                                    _this._mp4EntryVodStream();
+                                    return false;
+                                }
                             }
                         }
                         return pump(reader);
@@ -1509,7 +1768,7 @@ class H265webjsModule {
         let _this = this;
         playerConfig.probeSize = this.configFormat.extInfo.probeSize;
         this.player = new CHttpLiveCore.CHttpLiveCore(playerConfig);
-        alert("probeSize" + playerConfig.probeSize);
+        console.log("_cLiveFLVDecoderEntry playerConfig", playerConfig);
         /*
          *
          * Set Events
@@ -1529,7 +1788,7 @@ class H265webjsModule {
             };
             _this.playParam.audioNone = _this.player.mediaInfo.audioNone;
 
-            console.log("_this.player.mediaInfo", _this.player.mediaInfo);
+            console.log("_cLiveFLVDecoderEntry _this.player.mediaInfo", _this.player.mediaInfo);
 
             if (_this.player.vCodecID === def.V_CODEC_NAME_HEVC) {
                 if (_this.playParam.audioIdx < 0) {
@@ -1544,7 +1803,7 @@ class H265webjsModule {
                 let releaseRet = _this.player.release();
                 console.log("releaseRet ===> ", releaseRet);
                 _this.player = null;
-                _this._flvJsPlayer();
+                _this._flvJsPlayer(_this.playParam.durationMs);
             }
             // _this.onLoadFinish && _this.onLoadFinish();
         }; // onProbeFinish
@@ -1570,6 +1829,34 @@ class H265webjsModule {
             if (this.onLoadCacheFinshed != null) this.onLoadCacheFinshed();
         }; // onLoadCacheFinshed
 
+        this.player.onRender = (width, height, imageBufferY, imageBufferB, imageBufferR) => 
+        {
+            _this.snapshotYuvLastFrame.luma     = null;
+            _this.snapshotYuvLastFrame.chromaB  = null;
+            _this.snapshotYuvLastFrame.chromaR  = null;
+
+            _this.snapshotYuvLastFrame.width    = width;
+            _this.snapshotYuvLastFrame.height   = height;
+            _this.snapshotYuvLastFrame.luma     = new Uint8Array(imageBufferY);
+            _this.snapshotYuvLastFrame.chromaB  = new Uint8Array(imageBufferB);
+            _this.snapshotYuvLastFrame.chromaR  = new Uint8Array(imageBufferR);
+
+            // if (_this.snapshotCanvas !== undefined && 
+            //     _this.snapshotCanvas !== null) 
+            // {
+            //     _this.snapshotCanvas.width = width;
+            //     _this.snapshotCanvas.height = height;
+            // }
+
+            if (_this.onRender != null) {
+                _this.onRender(width, height, imageBufferY, imageBufferB, imageBufferR);
+            }
+        }; // onRender
+
+        this.player.onPlayState = (status) => {
+            _this.onPlayState && _this.onPlayState(status);
+        }; // onPlayState
+
         // boot
         this.player.start(this.videoURL);
         // this.playMode = def.PLAYER_MODE_NOTIME_LIVE;
@@ -1586,6 +1873,7 @@ class H265webjsModule {
             checkProbe: this.configFormat.extInfo.checkProbe,
             ignoreAudio : this.configFormat.extInfo.ignoreAudio,
             playMode: this.playMode,
+            autoPlay: this.configFormat.extInfo.autoPlay,
         };
         playerConfig.probeSize = this.configFormat.extInfo.probeSize;
         this.player = new CWsLiveCore.CWsLiveCore(playerConfig);
@@ -1625,7 +1913,7 @@ class H265webjsModule {
                 let releaseRet = _this.player.release();
                 console.log("releaseRet ===> ", releaseRet);
                 _this.player = null;
-                _this._flvJsPlayer();
+                _this._flvJsPlayer(_this.playParam.durationMs);
             }
             // _this.onLoadFinish && _this.onLoadFinish();
         }; // onProbeFinish
@@ -1650,6 +1938,30 @@ class H265webjsModule {
             // this._playUtilHiddenMask();
             if (this.onLoadCacheFinshed != null) this.onLoadCacheFinshed();
         }; // onLoadCacheFinshed
+
+        this.player.onRender = (width, height, imageBufferY, imageBufferB, imageBufferR) => 
+        {
+            _this.snapshotYuvLastFrame.luma     = null;
+            _this.snapshotYuvLastFrame.chromaB  = null;
+            _this.snapshotYuvLastFrame.chromaR  = null;
+
+            _this.snapshotYuvLastFrame.width    = width;
+            _this.snapshotYuvLastFrame.height   = height;
+            _this.snapshotYuvLastFrame.luma     = new Uint8Array(imageBufferY);
+            _this.snapshotYuvLastFrame.chromaB  = new Uint8Array(imageBufferB);
+            _this.snapshotYuvLastFrame.chromaR  = new Uint8Array(imageBufferR);
+
+            // if (_this.snapshotCanvas !== undefined && 
+            //     _this.snapshotCanvas !== null) 
+            // {
+            //     _this.snapshotCanvas.width = width;
+            //     _this.snapshotCanvas.height = height;
+            // }
+
+            if (_this.onRender != null) {
+                _this.onRender(width, height, imageBufferY, imageBufferB, imageBufferR);
+            }
+        }; // onRender
 
         // boot
         this.player.start(this.videoURL);
@@ -1707,6 +2019,7 @@ class H265webjsModule {
                         checkProbe: _this.configFormat.extInfo.checkProbe,
                         ignoreAudio : _this.configFormat.extInfo.ignoreAudio,
                         playMode: _this.playMode,
+                        autoPlay: _this.configFormat.extInfo.autoPlay,
                     };
                     _this._cLiveFLVDecoderEntry(playerConfig);
 
@@ -1757,7 +2070,7 @@ class H265webjsModule {
 
         }; // onReady
         this.mpegTsObj.initMPEG();
-    }
+    } // _mpegTsEntry
 
     /**
      * @brief onReadyOBJ is h265webclazz
@@ -1799,7 +2112,7 @@ class H265webjsModule {
 
         //TODO: get all the data at once syncronously or feed data through a callback if streamed
         _this._avFeedMP4Data(0, 0);
-    }
+    } // _mpegTsEntryReady
 
     /**
      * @brief m3u8
@@ -1859,15 +2172,15 @@ class H265webjsModule {
                     }
                     _this.hlsObj = null;
 
-                    _this.playParam.durationMs = -1;
+                    _this.playParam.durationMs = durationMs;
                     _this.playParam.fps = fps;
                     _this.playParam.sampleRate = sampleRate;
                     _this.playParam.size = size;
                     _this.playParam.audioNone = aCodec == "";
                     _this.playParam.videoCodec = isHevcParam ? 0 : 1;
-                    console.log("this.playParam: ", _this.playParam);
+                    console.log("this.playParam: ", _this.playParam, durationMs);
                     // _this.onLoadFinish && _this.onLoadFinish();
-                    _this._videoJsPlayer(); // videojs
+                    _this._videoJsPlayer(durationMs); // videojs
                     return;
                 } // end is hevc
 
@@ -1881,7 +2194,7 @@ class H265webjsModule {
         // start
         this.hlsObj.demux(this.videoURL);
 
-    } // end m3u8
+    } // _m3u8Entry end m3u8
 
     _hlsOnSamples(readyObj, frame) {
         let _this = this;
@@ -1893,16 +2206,18 @@ class H265webjsModule {
             _this.player.appendAACFrame(frame);
         }
 
-    }; // end onSamples
+    }; // _hlsOnSamples end onSamples
 
     // videojs
-    _videoJsPlayer() {
+    _videoJsPlayer(probeDurationMS=-1) {
         let _this = this;
         let playerConfig = {
+            probeDurationMS: probeDurationMS,
             width: this.configFormat.playerW,
             height: this.configFormat.playerH,
             playerId: this.configFormat.playerId,
             ignoreAudio : this.configFormat.extInfo.ignoreAudio,
+            autoPlay: this.configFormat.extInfo.autoPlay,
         }; // playerConfig
         this.player = new NvVideoJSCore.NvVideojsCore(playerConfig);
         this.player.onMakeItReady = () => {
@@ -1921,6 +2236,8 @@ class H265webjsModule {
                 _this.playParam.durationMs = _this.player.duration * 1000;
                 _this.playMode = def.PLAYER_MODE_VOD
             }
+
+            console.log("vjs _this.playParam.", _this.playParam, _this.player.duration, _this.player.getSize());
 
             _this.onLoadFinish && _this.onLoadFinish();
         }; // onLoadFinish
@@ -1945,19 +2262,24 @@ class H265webjsModule {
         this.player.onSeekFinish = () => {
             _this.onSeekFinish && _this.onSeekFinish();
         }; // onSeekFinish
+        this.player.onPlayState = (status) => {
+            _this.onPlayState && _this.onPlayState(status);
+        }; // onPlayState
         this.player.makeIt(this.videoURL);
 
     } // _videoJsPlayer
 
-    _flvJsPlayer() {
-        console.log("_flvJsPlayer");
+    _flvJsPlayer(durParams=-1) {
         let _this = this;
         let playerConfig = {
             width: this.configFormat.playerW,
             height: this.configFormat.playerH,
             playerId: this.configFormat.playerId,
             ignoreAudio : this.configFormat.extInfo.ignoreAudio,
+            duration: durParams,
+            autoPlay: this.configFormat.extInfo.autoPlay,
         }; // playerConfig
+        console.log("_flvJsPlayer", playerConfig);
         this.player = new NvFlvJSCore.NvFlvjsCore(playerConfig);
         this.player.onLoadFinish = () => {
             alert("_videoJsPlayer onLoadFinish");
@@ -1993,16 +2315,22 @@ class H265webjsModule {
                 _this.onPlayFinish();
             }
         }; // onPlayingFinish
+        this.player.onPlayState = (status) => {
+            _this.onPlayState && _this.onPlayState(status);
+        }; // onPlayState
+
         // this.player.onSeekFinish = () => {
         //     _this.onSeekFinish && _this.onSeekFinish();
         // }; // onSeekFinish
         this.player.makeIt(this.videoURL);
-    } // _videoJsPlayer
+    } // _flvJsPlayer
 
     /**
      * 265流媒体
      */
     _raw265Entry() {
+        let _this = this;
+        console.log("_raw265Entry", this.videoURL);
         // this.rawParserObj = new RawParser.RawParser();
 
         // this.playParam.durationMs = durationMs;
@@ -2028,6 +2356,571 @@ class H265webjsModule {
             window.clearInterval(this.timerFeed);
             this.timerFeed = null;
         }
+
+        /*
+         * workerFetch
+         */
+        this.workerFetch = new Worker(AVCOMMON.GetScriptPath(function() {
+            console.log("import raw worker!!!");
+            function fetchData(url265) {
+                let fetchFinished = false;
+                let startFetch = false;
+
+                if (!startFetch) {
+                    startFetch = true;
+                    fetch(url265).then(function(response) {
+                        let pump = function(reader) {
+                            return reader.read().then(function(result) {
+                                if (result.done) {
+                                    // console.log("========== RESULT DONE ===========");
+                                    fetchFinished = true;
+                                    postMessage({
+                                        cmd: 'fetch-fin',
+                                        data: null, 
+                                        msg: 'fetch-fin'
+                                    });
+                                    // window.clearInterval(networkInterval);
+                                    // networkInterval = null;
+                                    return;
+                                }
+
+                                let chunk = result.value;
+                                postMessage({
+                                    cmd: 'fetch-chunk',
+                                    data: chunk, 
+                                    msg: 'fetch-chunk'
+                                });
+                                // rawParser.appendStreamRet(chunk);
+                                return pump(reader);
+                            });
+                        }
+                        return pump(response.body.getReader());
+                    })
+                    .catch(function(error) {
+                        console.log(error);
+                    });
+                }
+            }
+
+            onmessage = (event) => {
+
+                // console.log("worker.onmessage", event);
+                let body = event.data;
+                let cmd = null;
+                if (body.cmd === undefined || body.cmd === null) {
+                    cmd = '';
+                } else {
+                    cmd = body.cmd;
+                }
+
+                // console.log("worker recv cmd:", cmd);
+
+                switch (cmd) {
+                    case 'start':
+                        // console.log("worker start");
+                        let url = body.data;
+                        fetchData(url);
+                        postMessage({
+                            cmd: 'default',
+                            data: 'WORKER STARTED', 
+                            msg: 'default'
+                        });
+                        break;
+                    case 'stop':
+                        // console.log("worker stop");
+                        // postMessage('WORKER STOPPED: ' + body);
+                        close(); // Terminates the worker.
+                        break;
+                    default:
+                        // console.log("worker default");
+                        // console.log("worker.body -> default: ", body);
+                        // worker.postMessage('Unknown command: ' + data.msg);
+                        break;
+                };
+            };
+        })); // end this.workerFetch
+
+
+        let onMsgFetchFinished = false;
+        let stopNaluInterval = false;
+
+        this.workerFetch.onmessage = function(event) {
+            // console.log("play -> workerFetch recv:", event, playerObj);
+            let body = event.data;
+            let cmd = null;
+            if (body.cmd === undefined || body.cmd === null) {
+                cmd = '';
+            } else {
+                cmd = body.cmd;
+            }
+
+            // console.log("play -> workerFetch recv cmd:", cmd);
+
+            switch (cmd) {
+                case 'fetch-chunk':
+                    console.log("play -> workerFetch append chunk");
+                    let chunk = body.data;
+                    _this.workerParse.postMessage({
+                        cmd : "append-chunk",
+                        data : chunk,
+                        msg : "append-chunk"
+                    });
+                    break;
+                case 'fetch-fin':
+                    onMsgFetchFinished = true;
+                    break;
+                default:
+                    break;
+            }
+        }; // this.workerFetch.onmessage
+
+
+        /*
+         * workerParse
+         */
+        this.workerParse = new Worker(AVCOMMON.GetScriptPath(function() {
+            const AfterGetNalThenMvLen  = 3;
+
+            function createRawParserModule() {
+                let obj = new Object();
+                obj.frameList = [];
+                obj.stream = null;
+
+                /*
+                 *****************************************************
+                 *                                                   *
+                 *                                                   *
+                 *                     HEVC Frames                   *
+                 *                                                   *
+                 *                                                   *
+                 *****************************************************
+                 */
+                obj.pushFrameRet = function (streamPushInput) {
+                    if (!streamPushInput || streamPushInput == undefined || streamPushInput == null) {
+                        return false;
+                    }
+
+                    if (!obj.frameList || obj.frameList == undefined || obj.frameList == null) {
+                        obj.frameList = [];
+                        obj.frameList.push(streamPushInput);
+                        
+                    } else {
+                        obj.frameList.push(streamPushInput);
+                    }
+
+                    return true;
+                }; // pushFrameRet
+
+                obj.nextFrame = function () {
+                    if (!obj.frameList && obj.frameList == undefined || obj.frameList == null && obj.frameList.length < 1) {
+                        return null;
+                    }
+                    return obj.frameList.shift();
+                } // nextFrame
+
+                obj.clearFrameRet = function () {
+                    obj.frameList = null;
+                } // clearFrameRet
+
+                /*
+                 *****************************************************
+                 *                                                   *
+                 *                                                   *
+                 *                     HEVC stream                   *
+                 *                                                   *
+                 *                                                   *
+                 *****************************************************
+                 */
+                obj.setStreamRet = function (streamBufInput) {
+                    obj.stream = streamBufInput;
+                }; // setStreamRet
+
+                obj.getStreamRet = function () {
+                    return obj.stream;
+                }; // getStreamRet
+
+                /**
+                 * push stream nalu, for live, not vod
+                 * @param Uint8Array
+                 * @return bool
+                 */
+                obj.appendStreamRet = function (input) {
+                    if (!input || input === undefined || input == null) {
+                        return false;
+                    }
+
+                    if (!obj.stream || obj.stream === undefined || obj.stream == null) {
+                        obj.stream = input;
+                        return true;
+                    }
+
+                    let lenOld  = obj.stream.length;
+                    let lenPush = input.length;
+
+                    let mergeStream = new Uint8Array(lenOld + lenPush);
+                    mergeStream.set(obj.stream, 0);
+                    mergeStream.set(input, lenOld);
+
+                    obj.stream = mergeStream;
+
+                    // let retList = obj.nextNaluList(9000);
+                    // if (retList !== false && retList.length > 0) {
+                    //     obj.frameList.push(...retList);
+                    // }
+
+                    for (let i = 0; i < 9999; i++) {
+                        let nalBuf = obj.nextNalu();
+                        if (nalBuf !== false && nalBuf !== null && nalBuf !== undefined) {
+                            obj.frameList.push(nalBuf);
+                        } else {
+                            break;
+                        }
+                    }
+
+                    return true;
+                }; // appendStreamRet
+
+                /**
+                 * sub nalu stream, and get Nalu unit
+                 */
+                obj.subBuf = function (startOpen, endOpen) { // sub block [m,n]
+                    // nal
+                    let returnBuf = new Uint8Array(
+                        obj.stream.subarray(startOpen, endOpen + 1)
+                    );
+
+                    // streamBuf sub
+                    obj.stream = new Uint8Array(
+                        obj.stream.subarray(endOpen + 1)
+                    );
+
+                    return returnBuf;
+                }; // subBuf
+
+                /**
+                 * @param onceGetNalCount: once use get nal count, defult 1
+                 * @return uint8array OR false
+                 */
+                obj.nextNalu = function (onceGetNalCount=1) {
+
+                    // check params
+                    if (obj.stream == null || obj.stream.length <= 4) {
+                        return false;
+                    }
+
+                    // start nal pos
+                    let startTag = -1;
+                    // return nalBuf
+                    let returnNalBuf = null;
+
+                    for (let i = 0;i < obj.stream.length; i++) {
+                        if (i + 5 >= obj.stream.length) {
+                            return false;
+                            // if (startTag == -1) {
+                            //     return false;
+                            // } else {
+                            //     // 如果结尾不到判断的字节位置 就直接全量输出最后一个nal
+                            //     returnNalBuf = obj.subBuf(startTag, obj.stream.length-1);
+                            //     return returnNalBuf;
+                            // }
+                        }
+
+                        // find nal
+                        if (
+                            (   // 0x00 00 01
+                                obj.stream[i]        == 0
+                                && obj.stream[i+1]   == 0
+                                && obj.stream[i+2]   == 1
+                            ) || 
+                            (   // 0x00 00 00 01
+                                obj.stream[i]        == 0
+                                && obj.stream[i+1]   == 0
+                                && obj.stream[i+2]   == 0
+                                && obj.stream[i+3]   == 1
+                            )
+                        ) {
+                            // console.log(
+                            //     "enter find nal , now startTag:" + startTag 
+                            //     + ", now pos:" + i
+                            // );
+                            let nowPos = i;
+                            i += AfterGetNalThenMvLen; // 移出去
+                            // begin pos
+                            if (startTag == -1) {
+                                startTag = nowPos;
+                            } else {
+                                if (onceGetNalCount <= 1) {
+                                    // startCode - End
+                                    // [startTag,nowPos)
+                                    // console.log("[===>] last code hex is :" + obj.stream[nowPos-1].toString(16))
+                                    returnNalBuf = obj.subBuf(startTag,nowPos-1);
+                                    return returnNalBuf;
+                                } else {
+                                    onceGetNalCount -= 1;
+                                }
+                            }
+                        }
+
+                    } // end for
+
+                    return false;
+                }; // nextNalu
+
+                obj.nextNalu2 = function (onceGetNalCount=1) {
+                    // check params
+                    if (obj.stream == null || obj.stream.length <= 4) {
+                        return false;
+                    }
+
+                    // start nal pos
+                    let startTag = -1;
+                    // return nalBuf
+                    let returnNalBuf = null;
+
+                    for (let i = 0;i < obj.stream.length; i++) {
+                        if (i + 5 >= obj.stream.length) {
+                            if (startTag == -1) {
+                                return false;
+                            } else {
+                                // 如果结尾不到判断的字节位置 就直接全量输出最后一个nal
+                                returnNalBuf = obj.subBuf(startTag, obj.stream.length - 1);
+                                return returnNalBuf;
+                            }
+                        }
+
+                        // find nal
+                        let is3BitHeader = obj.stream.slice(i, i+3).join(' ') == '0 0 1';
+                        let is4BitHeader = obj.stream.slice(i, i+4).join(' ') == '0 0 0 1';
+                        if (
+                            is3BitHeader || 
+                            is4BitHeader
+                        ) {
+                            let nowPos = i;
+                            i += AfterGetNalThenMvLen; // 移出去
+                            // begin pos
+                            if (startTag == -1) {
+                                startTag = nowPos;
+                            } else {
+                                if (onceGetNalCount <= 1) {
+                                    // startCode - End
+                                    // [startTag,nowPos)
+                                    // console.log("[===>] last code hex is :" + this.stream[nowPos-1].toString(16))
+                                    returnNalBuf = obj.subBuf(startTag, nowPos-1);
+                                    return returnNalBuf;
+                                } else {
+                                    onceGetNalCount -= 1;
+                                }
+                            }
+                        }
+
+                    } // end for
+                    return false;
+                }; // nextNalu2
+
+
+                /**
+                 * @brief sub nalu stream, and get Nalu unit
+                 *          to parse: 
+                 *           typedef struct {
+                 *               uint32_t width;
+                 *               uint32_t height;
+                 *               uint8_t *dataY;
+                 *               uint8_t *dataChromaB;
+                 *               uint8_t *dataChromaR;
+                 *           } ImageData;
+                 * @params struct_ptr: Module.cwrap('getFrame', 'number', [])
+                 * @return Dict
+                 */
+                // obj.parseYUVFrameStruct = function (struct_ptr = null) { // sub block [m,n]
+                //     if (struct_ptr == null || !struct_ptr || struct_ptr == undefined) {
+                //         return null;
+                //     }
+
+                //     let width           = Module.HEAPU32[struct_ptr / 4];
+                //     let height          = Module.HEAPU32[struct_ptr / 4 + 1];
+                //     // let imgBufferPtr    = Module.HEAPU32[ptr / 4 + 2];
+                //     // let imageBuffer     = Module.HEAPU8.subarray(imgBufferPtr, imgBufferPtr + width * height * 3);
+                //     // console.log("width:",width," height:",height);
+
+                //     let sizeWH          = width * height;
+                //     // let imgBufferYPtr   = Module.HEAPU32[ptr / 4 + 2];
+                //     // let imageBufferY    = Module.HEAPU8.subarray(imgBufferYPtr, imgBufferYPtr + sizeWH);
+
+                //     // let imgBufferBPtr   = Module.HEAPU32[ptr/4+ 2 + sizeWH/4 + 1];
+                //     // let imageBufferB    = Module.HEAPU8.subarray(
+                //     //     imgBufferBPtr, 
+                //     //     imgBufferBPtr + sizeWH/4
+                //     // );
+                //     // console.log(imageBufferB);
+
+                //     // let imgBufferRPtr   = Module.HEAPU32[imgBufferBPtr + sizeWH/16 + 1];
+                //     // let imageBufferR    = Module.HEAPU8.subarray(
+                //     //     imgBufferRPtr, 
+                //     //     imgBufferRPtr + sizeWH/4
+                //     // );
+
+                //     let imgBufferPtr = Module.HEAPU32[struct_ptr / 4 + 1 + 1];
+
+                //     let imageBufferY = Module.HEAPU8.subarray(imgBufferPtr, imgBufferPtr + sizeWH);
+
+                //     let imageBufferB = Module.HEAPU8.subarray(
+                //         imgBufferPtr + sizeWH + 8, 
+                //         imgBufferPtr + sizeWH + 8 + sizeWH/4
+                //     );
+
+                //     let imageBufferR = Module.HEAPU8.subarray(
+                //         imgBufferPtr + sizeWH + 8 + sizeWH/4 + 8,
+                //         imgBufferPtr + sizeWH + 8 + sizeWH/2 + 8
+                //     );
+
+                //     return {
+                //         width           : width,
+                //         height          : height,
+                //         sizeWH          : sizeWH,
+                //         imageBufferY    : imageBufferY,
+                //         imageBufferB    : imageBufferB,
+                //         imageBufferR    : imageBufferR
+                //     };
+                // }; // parseYUVFrameStruct
+
+                return obj;
+            } // createRawParserModule
+
+            let g_RawParser = createRawParserModule();
+
+            onmessage = (event) => {
+                // console.log("parse - worker.onmessage", event);
+                let body = event.data;
+                let cmd = null;
+                if (body.cmd === undefined || body.cmd === null) {
+                    cmd = '';
+                } else {
+                    cmd = body.cmd;
+                }
+
+                // console.log("parse - worker recv cmd:", cmd);
+
+                switch (cmd) {
+                    case 'append-chunk':
+                        // console.log("parse - worker append-chunk");
+                        let chunk = body.data;
+                        g_RawParser.appendStreamRet(chunk);
+
+                        let nalBufRet1 = g_RawParser.nextFrame();
+                        postMessage({
+                            cmd : "return-nalu",
+                            data : nalBufRet1,
+                            msg : "return-nalu"
+                        });
+                        break;
+                    case 'get-nalu':
+                        // let nalBuf = g_RawParser.nextNalu();
+                        let nalBufRet2 = g_RawParser.nextFrame();
+                        // console.log("parse - worker get-nalu", nalBuf);
+
+                        // if (nalBuf != false) {
+                            postMessage({
+                                cmd : "return-nalu",
+                                data : nalBufRet2,
+                                msg : "return-nalu"
+                            });
+                        // }
+
+                        break;
+                    case 'stop':
+                        // console.log("parse - worker stop");
+                        postMessage('parse - WORKER STOPPED: ' + body);
+                        close(); // Terminates the worker.
+                        break;
+                    default:
+                        // console.log("parse - worker default");
+                        // console.log("parse - worker.body -> default: ", body);
+                        // worker.postMessage('Unknown command: ' + data.msg);
+                        break;
+                };
+            };
+        })); // this.workerParse
+
+        this.workerParse.onmessage = event => {
+            // return-nalu
+            // console.log("play -> workerParse recv:", event, playerObj);
+            let body = event.data;
+            let cmd = null;
+            if (body.cmd === undefined || body.cmd === null) {
+                cmd = '';
+            } else {
+                cmd = body.cmd;
+            }
+
+            // console.log("play -> workerParse recv cmd:", cmd);
+
+            switch (cmd) {
+                case 'return-nalu':
+                    let nalBuf = body.data;
+                    if (nalBuf === false || nalBuf === null || nalBuf === undefined) 
+                    {
+                        if (onMsgFetchFinished === true) {
+                            stopNaluInterval = true;
+                        }
+                    } else {
+                        // console.warn("play -> workerParse nalu");
+                        _this.append265NaluFrame(nalBuf);
+                        _this.workerParse.postMessage({
+                            cmd : "get-nalu",
+                            data : null,
+                            msg : "get-nalu"
+                        });
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }; // this.workerParse.onmessage 
+
+        
+        let naluGetFunc = function() {
+            setTimeout(() => {
+                _this.workerParse.postMessage({
+                    cmd : "get-nalu",
+                    data : null,
+                    msg : "get-nalu"
+                });
+                if (stopNaluInterval === true) {
+                    return;
+                }
+                naluGetFunc();
+            }, 1000);
+        }; // naluGetFunc
+
+        let coverGetFunc = function() {
+            setTimeout(() => {
+                // 首帧显示渲染
+                if (_this.configFormat.extInfo.readyShow) {
+                    // candebug = true;
+                    console.log("============== readyShow");
+                    if (_this.player.cacheYuvBuf.getState() != CACHE_APPEND_STATUS_CODE.NULL) 
+                    {
+                        _this.player.playFrameYUV(true, true);
+                        _this.configFormat.extInfo.readyShow = false;
+                        _this.onReadyShowDone && _this.onReadyShowDone();
+                        
+                    } else {
+                        coverGetFunc();
+                    }
+                }
+            }, 1000);
+        }; // coverGetFunc
+
+        /*
+         * do
+         */
+        this.workerFetch.postMessage({
+            cmd: "start", 
+            data: this.videoURL, 
+            msg: "start"
+        }); // this.workerFetch.postMessage
+        // naluGetFunc();
+        coverGetFunc();
 
         // let frameDur = 1.0 / this.configFormat.extInfo.rawFps;
         // let timestampNow = 0.0;
@@ -2070,7 +2963,7 @@ class H265webjsModule {
         //         }
         //     }
         // }, 1);
-    }
+    } // raw265Entry
 
     // append raw 265 nalu frame
     /**

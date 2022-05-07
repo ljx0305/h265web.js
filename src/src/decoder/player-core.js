@@ -1,5 +1,5 @@
 /********************************************************* 
- * LICENSE: GPL-3.0 https://www.gnu.org/licenses/gpl-3.0.txt
+ * LICENSE: LICENSE-Free_CN.MD
  * 
  * Author: Numberwolf - ChangYanlong
  * QQ: 531365872
@@ -69,7 +69,6 @@ module.exports = config => {
         },
         vcodecerPtr: null,
         videoCallback: null,
-        vCodecID: def.V_CODEC_NAME_HEVC,
         /*
          * frame.data
          * frame.pts
@@ -79,6 +78,7 @@ module.exports = config => {
         cacheYuvBuf: CacheYUV(CACHE_LENGTH),
         nowPacket: null, // 当前处理的Packet
         stream: new Uint8Array(),
+        vCodecID: def.V_CODEC_NAME_HEVC,
         audio: null,
         // screenView: new ScreenModule.Screen(),
         liveStartMs: -1, // @Todo
@@ -124,13 +124,13 @@ module.exports = config => {
     player.setScreen = (setVal = false) => {
         if (null !== player && undefined !== player) {
             player.showScreen = setVal;
-            if (player.canvas) {
-                if (setVal) {
-                    player.canvas.setAttribute('hidden', true);
-                } else {
-                    player.canvas.removeAttribute('hidden');
-                }
-            }
+            // if (player.canvas) {
+            //     if (setVal) {
+            //         player.canvas.setAttribute('hidden', true);
+            //     } else {
+            //         player.canvas.removeAttribute('hidden');
+            //     }
+            // }
         }
     };
     player.setSize = (width, height) => {
@@ -322,6 +322,7 @@ module.exports = config => {
         //     return cacheYuvStructObj;
         // }
         Module._free(offset);
+        offset = null;
         return false;
     }; // decodeNalu1Frame
     /**
@@ -562,7 +563,7 @@ module.exports = config => {
                 // let test1time = AVCommon.GetMsTime();
                 let spendMs = AVCommon.GetMsTime() - player.liveStartMs;
                 let frameCount = spendMs / player.frameTime;
-                // console.log("player.loop====>", spendMs, frameCount, frameIdx);
+                console.log("player.loop====>", spendMs, frameCount, frameIdx);
 
                 if (frameCount >= frameIdx) {
                     player.playFrameYUV(true, player.playParams.accurateSeek);
@@ -675,6 +676,8 @@ module.exports = config => {
 
         player.canvas.remove();
         player.canvas = null;
+
+        window.onclick = document.body.onclick = null;
         return true;
     };
     player.nextNalu = (onceGetNalCount=1) => {
@@ -766,6 +769,11 @@ module.exports = config => {
     //     }
     //     return true;
     // };
+
+    player.playYUV = () => {
+        return player.playFrameYUV(true, true);
+    }; // playYUV
+
     /**
      * @brief play yuv cache
      */
@@ -801,6 +809,11 @@ module.exports = config => {
         if ((!show && accurateSeek) || show) {
             if (show) {
                 //console.log("cacheThread ----> render pts ", yuvItemObj);
+                player.onRender(
+                    yuvItemObj.width, yuvItemObj.height, 
+                    yuvItemObj.imageBufferY,
+                    yuvItemObj.imageBufferB,
+                    yuvItemObj.imageBufferR);
                 player.drawImage(
                     yuvItemObj.width,
                     yuvItemObj.height,
@@ -852,7 +865,7 @@ module.exports = config => {
             // when full screen mode open,
             // do not render the main window,
             // only use fullscreen window
-            return;
+            // return;
         }
 
         if (!player.isCheckDisplay) {
@@ -893,7 +906,7 @@ module.exports = config => {
         player.debugID = debugID;
     };
     player.checkDisplaySize = (widthIn, heightIn) => {
-        //console.log("checkDisplaySize==========>", widthIn, heightIn);
+        console.log("player-core.js checkDisplaySize==========>", widthIn, heightIn);
         let biggerWidth = widthIn / player.config.width > heightIn / player.config.height;
         let fixedWidth = (player.config.width / widthIn).toFixed(2);
         let fixedHeight = (player.config.height / heightIn).toFixed(2);
@@ -939,6 +952,13 @@ module.exports = config => {
                 ptsSec, 
                 stride_y, height, 
                 buf_y, buf_u, buf_v);
+
+            Module._free(out_y);
+            out_y = null;
+            Module._free(out_u);
+            out_u = null;
+            Module._free(out_v);
+            out_v = null;
 
             player.cacheYuvBuf.appendCacheByCacheYuv(cacheYuvStructObj);
         });

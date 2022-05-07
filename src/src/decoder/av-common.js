@@ -1,5 +1,5 @@
 /********************************************************* 
- * LICENSE: GPL-3.0 https://www.gnu.org/licenses/gpl-3.0.txt
+ * LICENSE: LICENSE-Free_CN.MD
  * 
  * Author: Numberwolf - ChangYanlong
  * QQ: 531365872
@@ -22,6 +22,11 @@
 
 const def = require('../consts');
 const Formats = [
+	// {
+	// 	format: 'avi', // regex match
+	// 	value: 'mp4',
+	// 	core: def.PLAYER_CORE_TYPE_CNATIVE
+	// },
 	{
 		format: 'mp4', // regex match
 		value: 'mp4',
@@ -29,6 +34,11 @@ const Formats = [
 	},
 	{
 		format: 'mov',
+		value: 'mp4',
+		core: def.PLAYER_CORE_TYPE_CNATIVE
+	},
+	{
+		format: 'mkv',
 		value: 'mp4',
 		core: def.PLAYER_CORE_TYPE_CNATIVE
 	},
@@ -53,6 +63,11 @@ const Formats = [
 		core: def.PLAYER_CORE_TYPE_DEFAULT
 	},
 	{
+		format: 'ps',
+		value: 'ts',
+		core: def.PLAYER_CORE_TYPE_DEFAULT
+	},
+	{
 		format: 'mpegts',
 		value: 'ts',
 		core: def.PLAYER_CORE_TYPE_DEFAULT
@@ -64,6 +79,11 @@ const Formats = [
 	},
 	{
 		format: 'h265',
+		value: 'raw265',
+		core: def.PLAYER_CORE_TYPE_DEFAULT
+	},
+	{
+		format: '265',
 		value: 'raw265',
 		core: def.PLAYER_CORE_TYPE_DEFAULT
 	}
@@ -181,7 +201,25 @@ function GetUriProtocol(uri) {
 
 function GetMsTime() {
     return new Date().getTime();
-};
+}
+
+function GetScriptPath(foo) {
+    let fooStr = foo.toString();
+    let fooMatchFunc = fooStr.match(/^\s*function\s*\(\s*\)\s*\{(([\s\S](?!\}$))*[\s\S])/);
+
+    console.log(fooStr);
+    console.log(fooMatchFunc);
+
+    let funcStream = [fooMatchFunc[1]];
+    return window.URL.createObjectURL(
+        new Blob(
+            funcStream, 
+            {
+                type: 'text/javascript'
+            }
+        )
+    ); 
+}
 
 module.exports = {
     frameDataAlignCrop : frameDataAlignCrop,
@@ -189,4 +227,5 @@ module.exports = {
     GetFormatPlayCore : GetFormatPlayCore,
     GetUriProtocol : GetUriProtocol,
     GetMsTime : GetMsTime,
+    GetScriptPath : GetScriptPath,
 }; // module exports

@@ -1,5 +1,5 @@
 /********************************************************* 
- * LICENSE: GPL-3.0 https://www.gnu.org/licenses/gpl-3.0.txt
+ * LICENSE: LICENSE-Free_CN.MD
  * 
  * Author: Numberwolf - ChangYanlong
  * QQ: 531365872
@@ -65,6 +65,8 @@ module.exports = {
     PLAYER_CORE_TYPE_DEFAULT: 0, // 默认播放器
     PLAYER_CORE_TYPE_CNATIVE: 1, // 包括demuxer decoder全部走C FFmpeg Native的
 
+    PLAYER_CNATIVE_VOD_RETRY_MAX: 7,
+
     URI_PROTOCOL_WEBSOCKET: 'ws',
     URI_PROTOCOL_WEBSOCKET_DESC: 'websocket',
     URI_PROTOCOL_HTTP: 'http',
@@ -84,4 +86,6 @@ module.exports = {
     CACHE_NO_LOADCACHE      : 0xC0,
     CACHE_WITH_PLAY_SIGN    : 0xC1,
     CACHE_WITH_NOPLAY_SIGN  : 0xC2,
+
+    V_CODEC_AVC_DEFAULT_FPS : 25,
 }; // module export

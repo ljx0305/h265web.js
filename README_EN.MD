@@ -32,8 +32,11 @@ A hevc/h.265 web player, easy to play 1080P. `~^_^~ For love` if <a href="https:
 | <img src="resource/icon-httpflv.png" width="100"> | <img src="resource/icon-httpts.png" width="100"> | <img src="resource/icon-websocketflv.png" width="100"> | <img src="resource/icon-websocketts.png" width="100"> |
 | HTTP-FLV(LIVE) | HTTP-TS(LIVE) | WS-FLV(LIVE) | WS-TS(LIVE) |
 | <br> | <br> | <br> | <br> |
-| <img src="resource/icon-ts.png" width="100"> | <img src="resource/icon-todo.png" width="100"> | <img src="resource/icon-todo.png" width="100"> |  . |
-| MPEG-TS(VOD) | G711A | HDR10(BT2020) | . |
+| <img src="resource/icon-ts.png" width="100"> | <img src="resource/icon-mpegps.png" width="100"> | <img src="resource/icon-av1.png" width="100"> | <img src="resource/icon-mov-h265.png" width="100">|
+| MPEG-TS(VOD) | MPEG-PS(VOD) | AV1(Chrome) | MOV(H.265) |
+| <br> | <br> | <br> | <br> |
+| <img src="resource/icon-hevc.png" width="100"> | <img src="resource/icon-mkv.png" width="100"><br> | <img src="resource/icon-todo.png" width="100"> | <img src="resource/icon-todo.png" width="100"><br> |
+| HTTP-HEVC | MKV(HEVC) | G711A | HDR10(BT2020) |
 
 </font>
 </strong>
@@ -46,12 +49,14 @@ A hevc/h.265 web player, easy to play 1080P. `~^_^~ For love` if <a href="https:
 * Discord:numberwolf#8694
 * Wechat:numberwolf11
 
-#### DEMO <a href="https://www.zzsin.com/h265webjs.html"> h265webjs.html (Demo is not newest version, you need to download from github and get newest version)
+#### Online DEMO <a href="https://www.zzsin.com/h265webjs.html"> h265webjs.html (Demo is not newest version, you need to download from github and get newest version)
 </a>
+
+#### Simple Demo - for first use <a href="index-debug.html">index-debug.html</a>
 
 | h265web.js | mpeg.js `(ts demuxer)` | h265web.js's H.265 decoder | LICENSE |
 | ---- | ---- | ---- | ---- |
-| [h265web.js](https://github.com/numberwolf/h265web.js)  | [MPEG-Demuxer.js](https://github.com/numberwolf/MPEG-Demuxer.js) | [h265web.js-wasm-decoder](https://github.com/numberwolf/h265web.js-wasm-decoder) | <a href="https://www.gnu.org/licenses/gpl-3.0.md">License GPL-3.0</a> |
+| [h265web.js](https://github.com/numberwolf/h265web.js)  | [MPEG-Demuxer.js](https://github.com/numberwolf/MPEG-Demuxer.js) | [h265web.js-wasm-decoder](https://github.com/numberwolf/h265web.js-wasm-decoder) | <a href="LICENSE-Free_CN.MD">CYL_Free-1.0 LICENSE-Free_CN.MD</a> |
 
 <hr>
 
@@ -116,6 +121,8 @@ Notice：
 		- [Open FullScreen Event](#openfullscreenevent)
 
 		- [Exit FullScreen Event](#closefullscreenevent)
+		
+		- [Callback Play State](#callbackplaystate)
 
 	- [Player API Document](#playerapidocument)
 
@@ -138,6 +145,10 @@ Notice：
 		- [Open Fullscreen](#openfullscreen)
 
 		- [Exit Fullscreen](#exitfullscreen)
+
+		- [Play frame by frame(next frame)](#nextframe)
+
+		- [Snapshot](#snapshot)
 
 		- [Release Player](#release)
 
@@ -165,42 +176,49 @@ Notice：
 |  protocol | model | support | desc |
 | ---- | ---- |  ----  | ---- |
 | mp4 | Video on demand |  Y  | ---- |
+| mov | Video on demand |  Y  | HEVC/H.265 |
+| mkv | Video on demand |  Y  | HEVC/H.265 |
+| av1 | Video on demand |  Y  | Chrome |
 | mpeg-ts | Video on demand |  Y  | ---- |
+| mpeg-ps | Video on demand |  Y  | ---- |
 | m3u8 | Video on demand |  Y  | ---- |
 | hls | Live |  Y  | ---- |
+| flv | Video on demand |  Y  | ---- |
+| http-flv | Live |  Y  | CodecID=12 |
+| http-ts | Live |  Y  | ---- |
+| websocket-flv | Live |  Y  | ---- |
+| websocket-ts | Live |  Y  | ---- |
 | HEVC/H.265 | Video on demand |  Y  | ---- |
 | HEVC/H.265 | Live |  Y  | ---- |
 | AVC/H.264 | Video on demand |  Y  | ---- |
 | AVC/H.264 | Live |  Y  | ---- |
-| http-flv | Live |  Y  | CodecID=12 |
-| flv | Video on demand |  Y  | Bak player core mode |
-| websocket-flv | Live |  Y  | ---- |
-| websocket-ts | Live |  Y  | ---- |
-| http-ts | Live |  Y  | ---- |
+
 
 * Features
 
 |  Feature | support | desc |
 | ---- | ---- |  ----  |
-| Video on demand | Y |  ----  | ---- |
-| Live | Y |  ----  | ---- |
-| Seek | Y | ----  | ---- |
-| AccurateSeek | Y |  ----  | ---- |
-| Cover Image | Y |  ----  | ---- |
-| Playing with download | Y |  ----  | ---- |
-| Volume | Y |  ----  | ---- |
-| Play | Y |  ----  | ---- |
-| Pause | Y |  ----  | ---- |
-| ReStart | Y |  ----  | ---- |
-| PauseWithCoverImage | Y |  ----  | ---- |
-| 1080P | Y |  ----  | ---- |
-| 720P | Y |  ----  | ---- |
-| Create multi players | Y |  ----  | ---- |
-| Play without Audio | Y |  ----  | ---- |
-| Cache process | Y |  ----  | ---- |
-| Open Fullscreen | Y |  ----  | ---- |
-| Exit Fullscreen | Y |  ----  | ---- |
-
+| Video on demand | Y |  ----  |
+| Live | Y |  ----  |
+| Seek | Y | ----  |
+| AccurateSeek | Y |  ----  |
+| Cover Image | Y |  ----  |
+| Playing with download | Y |  ----  |
+| Volume | Y |  ----  |
+| Play | Y |  ----  |
+| Pause | Y |  ----  |
+| ReStart | Y |  ----  |
+| PauseWithCoverImage | Y |  ----  |
+| 1080P | Y |  ----  |
+| 720P | Y |  ----  |
+| Create multi players | Y |  ----  |
+| Play without Audio | Y |  ----  |
+| Cache process | Y |  ----  |
+| Open Fullscreen | Y |  ----  |
+| Exit Fullscreen | Y |  ----  |
+| Play frame by frame | Y |  ----  |
+| Snapshot | Y |  ----  |
+| Autoplay | Y |  HTTP-FLV 265+264<br>HTTP-TS 265+264<br>HLS 264  |
 
 <br>
 
@@ -216,6 +234,8 @@ token = "base64:QXV0aG9yOmNoYW5neWFubG9uZ3xudW1iZXJ3b2xmLEdpdGh1YjpodHRwczovL2dp
 
 <a href="https://www.zzsin.com/h265webjs.html">https://www.zzsin.com/h265webjs.html</a>
 
+Simple Demo - First <a href="index-debug.html">index-debug.html</a>
+
 <br>
 
 #### PreviewImage ####
@@ -229,7 +249,7 @@ token = "base64:QXV0aG9yOmNoYW5neWFubG9uZ3xudW1iZXJ3b2xmLEdpdGh1YjpodHRwczovL2dp
 
 ## 1、UseItByDemo ##
 
-* You can use it by `play.js`和`index.html`
+* Simple Demo - First <a href="index-debug.html">index-debug.html</a>
 
 * You need to put project in your `web server` path, and open it with `index.html`
 
@@ -250,6 +270,8 @@ token = "base64:QXV0aG9yOmNoYW5neWFubG9uZ3xudW1iZXJ3b2xmLEdpdGh1YjpodHRwczovL2dp
 #### 1）Install SDK Package
 
 * By github 1.1 <a href="https://github.com/numberwolf/h265web.js">h265web.js</a>
+
+* Simple Demo - First <a href="index-debug.html">index-debug.html</a>
 
 * demo: <a href="./example_normal">example_normal</a> （recommend）
 	```javascript
@@ -325,6 +347,7 @@ let config = {
 | \+ core  | Int | - | N:Default 0 | 0:Default Core <br>1:Bak Core |
 | \+ ignoreAudio | Int | - | N:Default is 0 | 0:Play with audio <br>1:Without audio |
 | \+ probeSize | Int | - | N:4096 | HTTP-FLV(LIVE) Mode's probe size, default is 4096 |
+| \+ autoPlay | Bool | true/false | N:false | Open autoplay <br>HTTP-FLV 265+264<br>HTTP-TS 265+264<br>HLS 264 |
 
 
 <br>
@@ -378,7 +401,6 @@ let config = {
 		```javascript
 		let videoURL = "demo/res/raw.h265";
 		let config = {
-		    type: "raw265",
 		    player: "glplayer",
 		    width: 960,
 		    height: 540,
@@ -434,6 +456,7 @@ let config = {
 		```
 
 		* 3. NOTICE! If you want to create `raw265` stream player
+			(Do not need execute with this step when you play 265 vod stream)
 
 			* `raw265` type，feed byte data
 
@@ -645,6 +668,17 @@ player.onCloseFullScreen = () => {
 };
 ```
 
+#### CallbackPlayState ####
+
+* Example
+
+```javascript
+player.onPlayState = (state) => {
+    // state
+    // true: playing / false: paused
+};
+```
+
 <br>
 
 ### PlayerAPIDocument ###
@@ -829,13 +863,40 @@ player.fullScreen();
 player.closeFullScreen();
 ```
 
+<br>
+
+
+#### nextframe ####
+
+|  Function | Return | Desc |
+|  ----  | ----  | ---- |
+| playNextFrame()  | - | play next frame |
+
+<br>
+
+
+#### snapshot ####
+
+|  Function | Return | Desc |
+|  ----  | ----  | ---- |
+| snapshot()  | - | Snapshot frame |
+
+* Example
+
+```javascript
+const snapCanvas = document.getElementById("snapshot-player"); // create canvas
+h265Object.snapshot(snapCanvas); // snapshot to canvas
+```
+
+<br>
+
 #### release ####
 
 | Function | Return | Desc |
 | ----  | ----  | ---- |
 | release()  | - | Release Player |
 
-* 示例
+* Example
 
 ```javascript
 player.release();
@@ -906,6 +967,37 @@ ffmpeg -ss 20 -t 10 -i ./res/xinxiaomen.mp4 \
 
 | Update | Content |
 | ---- | ---- |
+| Time | 2022/05/07 |
+| - | 0.Fixed:MP4(VOD) retry error |
+| - | 1.Support:HEVC raw stream(VOD), create with url |
+| - | 2.Support:MKV format |
+| Time | 2022/04/21 |
+| - | 0.Performance optimizing |
+| Time | 2022/04/17 |
+| - | New Opensource Free Protocol <a href="LICENSE-Free_CN.MD">CYL_Free-1.0 LICENSE-Free_CN.MD</a> |
+| Time | 2022/04/14 |
+| - | 0.Support Mov File |
+| - | 1.Support HTTP-FLV/HTTP-TS/HLS Autoplay |
+| - | 2.Performance optimizing of 1080P MP4(VOD) |
+| - | 3.Retry of mp4 sniff action |
+| - | 4.Support AV1 |
+| - | 5.Support Play frame by frame |
+| - | 6.Support Video Frame Snapshot |
+| Time | 2022/03/28 |
+| - | 0.Support MPEG-PS(MPEG1) stream |
+| Time | 2022/03/02 |
+| - | 0.Fixed h264 FLV(LIVE) can not get resolution info with retry |
+| Time | 2022/01/17 |
+| - | 0.Fixed ISSUE of HLS 265 OOM Case https://github.com/numberwolf/h265web.js/issues/108  <img src="resource/mem-hls.jpg" width="300px"> |
+| - | 1.Fixed ISSUE of HLS Split Rules https://github.com/numberwolf/h265web.js/issues/105 |
+| - | 2.Add New Demo <a href="index-debug.html">index-debug.html</a> |
+| - | 3.Fixed 10+playes of 264 play failed, stack overflow |
+| Time | 2021/12/31 |
+| - | 0.Add H.264 HTTP-FLV Retry after error |
+| Time | 2021/12/24 |
+| - | 0.Fixed H.264 HTTP-FLV Some Badcase with callback |
+| Time | 2021/12/19 |
+| - | 0.Fixed H.264 HLS Callback's problem |
 | Time | 2021/12/08 |
 | - | 0.Fixed Problem of H.264 MP4 onReadyShowDone Event |
 | Time | 2021/12/04 - In the small hours |

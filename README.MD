@@ -31,29 +31,34 @@
 | <img src="resource/icon-httpflv.png" width="100"> | <img src="resource/icon-httpts.png" width="100"> | <img src="resource/icon-websocketflv.png" width="100"> | <img src="resource/icon-websocketts.png" width="100"> |
 | HTTP-FLV(LIVE) | HTTP-TS(LIVE) | WS-FLV(LIVE) | WS-TS(LIVE) |
 | <br> | <br> | <br> | <br> |
-| <img src="resource/icon-ts.png" width="100"> | <img src="resource/icon-todo.png" width="100"> | <img src="resource/icon-todo.png" width="100"><br>商业化 |  . |
-| MPEG-TS(VOD) | G711A | HDR10(BT2020) | . |
+| <img src="resource/icon-ts.png" width="100"> | <img src="resource/icon-mpegps.png" width="100"> | <img src="resource/icon-av1.png" width="100"> | <img src="resource/icon-mov-h265.png" width="100">|
+| MPEG-TS(VOD) | MPEG-PS(VOD) | AV1(Chrome) | MOV(H.265) |
+| <br> | <br> | <br> | <br> |
+| <img src="resource/icon-hevc.png" width="100"> | <img src="resource/icon-mkv.png" width="100"><br> | <img src="resource/icon-todo.png" width="100"> | <img src="resource/icon-todo.png" width="100"><br> |
+| HTTP-HEVC | MKV(HEVC) | G711A | HDR10(BT2020) |
 
 </font>
 </strong>
 
 #### 联系我
 
-* <strong><font color="red">QQ技术支持群: 925466059</font></strong>
+* <strong><font color="red">QQ技术支持群: 925466059(大部分时间在QQ群)</font></strong>
 * <strong><font color="red">微信: numberwolf11(私聊咨询付费, 免费技术咨询请加QQ群)</font></strong>
 * Github: https://github.com/numberwolf
 * Email: porschegt23@foxmail.com
 * Discord:numberwolf#8694
 
-#### DEMO <a href="https://www.zzsin.com/h265webjs.html"> h265webjs.html (请以Github最新为准,在线Demo已长时间未更新)
+#### 在线DEMO <a href="https://www.zzsin.com/h265webjs.html"> h265webjs.html (请以Github最新为准,在线Demo已长时间未更新)
 </a>
+
+#### 简易Demo - 方便读代码 <a href="index-debug.html">index-debug.html</a>
 
 
 <br>
 
 | h265web.js | mpeg.js `(解析ts)` | h265web.js 底层265解码器SDK | LICENSE |
 | ---- | ---- | ---- | ---- |
-| [h265web.js](https://github.com/numberwolf/h265web.js)  | [MPEG-Demuxer.js](https://github.com/numberwolf/MPEG-Demuxer.js) | [h265web.js-wasm-decoder](https://github.com/numberwolf/h265web.js-wasm-decoder) | <a href="https://www.gnu.org/licenses/gpl-3.0.md">License GPL-3.0</a> |
+| [h265web.js](https://github.com/numberwolf/h265web.js)  | [MPEG-Demuxer.js](https://github.com/numberwolf/MPEG-Demuxer.js) | [h265web.js-wasm-decoder](https://github.com/numberwolf/h265web.js-wasm-decoder) | <a href="LICENSE-Free_CN.MD">CYL_Free-1.0 LICENSE-Free_CN.MD</a> |
 
 <hr>
 
@@ -116,6 +121,8 @@
 		- [开启全屏事件](#开启全屏事件)
 
 		- [关闭全屏事件](#关闭全屏事件)
+		
+		- [播放器播放状态](#播放器播放状态)
 
 	- [播放器API能力](#播放器api能力)
 
@@ -138,6 +145,10 @@
 		- [全屏播放](#全屏播放)
 
 		- [退出全屏播放](#退出全屏播放)
+
+		- [逐帧播放](#逐帧播放)
+
+		- [截取当前帧图像](#截取当前帧图像)
 
 		- [释放播放器](#释放播放器)
 
@@ -166,41 +177,49 @@
 | 协议  | 模式 | 是否支持 | 说明 |
 | ---- | ---- |  ----  | ---- |
 | mp4 | 点播 |  是  | ---- |
-| ts | 点播 |  是  | ---- |
+| mov | 点播 |  是  | HEVC/H.265 |
+| mkv | 点播 |  是  | HEVC/H.265 |
+| av1 | 点播 |  是  | Chrome |
+| mpeg-ts | 点播 |  是  | ---- |
+| mpeg-ps | 点播 |  是  | ---- |
 | m3u8 | 点播 |  是  | ---- |
 | hls | 直播 |  是  | ---- |
+| flv | 点播 |  是  | --- |
+| http-flv | 直播 |  是  | CodecID=12 |
+| http-ts | 直播 |  是  | ---- |
+| websocket-flv | 直播 |  是  | ---- |
+| websocket-ts | 直播 |  是  | ---- |
 | HEVC/H.265 | 点播 |  是  | ---- |
 | HEVC/H.265 | 直播 |  是  | ---- |
 | AVC/H.264 | 点播 |  是  | ---- |
 | AVC/H.264 | 直播 |  是  | ---- |
-| http-flv | 直播 |  是  | CodecID=12 |
-| flv | 点播 |  是  | 备用播放内核模式,不需要填写 |
-| websocket-flv | 直播 |  是  | ---- |
-| websocket-ts | 直播 |  是  | ---- |
-| http-ts | 直播 |  是  | ---- |
+
 
 * 能力
 
-|  能力 | 是否支持 | 其他 |
+| 能力 | 是否支持 | 其他 |
 | ---- | ---- |  ----  |
-| 直播 | 是 |  ----  | ---- |
-| 点播 | 是 |  ----  | ---- |
-| Seek跳转 | 是 | ---- | ---- |
-| 精准Seek | 是 |  ----  | ---- |
-| 封面图 | 是 |  ----  | ---- |
-| 边下边播 | 是 |  ----  | ---- |
-| 音量调节 | 是 |  ----  | ---- |
-| 播放 | 是 |  ----  | ---- |
-| 暂停 | 是 |  ----  | ---- |
-| 重新播放 | 是 |  ----  | ---- |
-| 暂停截图 | 是 |  ----  | ---- |
-| 1080p播放 | 是 |  ----  | ---- |
-| 720p播放 | 是 |  ----  | ---- |
-| 多路播放 | 是 |  ----  | ---- |
-| 去音频播放 | 是 |  ----  | ---- |
-| 缓冲进度 | 是 |  ----  | ---- |
-| 开启全屏播放 | 是 |  ----  | ---- |
-| 退出全屏播放 | 是 |  ----  | ---- |
+| 直播 | 是 |  ----  |
+| 点播 | 是 |  ----  |
+| Seek跳转 | 是 | ---- |
+| 精准Seek | 是 |  ----  |
+| 封面图 | 是 |  ----  |
+| 边下边播 | 是 |  ----  |
+| 音量调节 | 是 |  ----  |
+| 播放 | 是 |  ----  |
+| 暂停 | 是 |  ----  |
+| 重新播放 | 是 |  ----  |
+| 暂停截图 | 是 |  ----  |
+| 1080p播放 | 是 |  ----  |
+| 720p播放 | 是 |  ----  |
+| 多路播放 | 是 |  ----  |
+| 去音频播放 | 是 |  ----  |
+| 缓冲进度 | 是 |  ----  |
+| 开启全屏播放 | 是 |  ----  |
+| 退出全屏播放 | 是 |  ----  |
+| 逐帧播放 | 是 |  ----  |
+| 截图 | 是 | ----  |
+| 自动播放 | 是 | HTTP-FLV 265+264<br>HTTP-TS 265+264<br>HLS 264  |
 
 <br>
 
@@ -216,6 +235,8 @@ token = "base64:QXV0aG9yOmNoYW5neWFubG9uZ3xudW1iZXJ3b2xmLEdpdGh1YjpodHRwczovL2dp
 
 <a href="https://www.zzsin.com/h265webjs.html">https://www.zzsin.com/h265webjs.html</a>
 
+简易Demo - 方便读代码 <a href="index-debug.html">index-debug.html</a>
+
 <br>
 
 #### 效果预览 ####
@@ -229,13 +250,15 @@ token = "base64:QXV0aG9yOmNoYW5neWFubG9uZ3xudW1iZXJ3b2xmLEdpdGh1YjpodHRwczovL2dp
 
 ## 1 快捷方式使用 ##
 
-* 使用流程也可以直接看 `play.js`和`index.html`的Demo使用
+* 简易Demo - 方便读代码 <a href="index-debug.html">index-debug.html</a>
 
 * 本项目可以直接放在你的`web服务器`目录下访问`index.html`
 
 <br>
 
 ## 2 播放器SDK使用文档 ##
+
+简易Demo - 方便读代码 <a href="index-debug.html">index-debug.html</a>
 
 ———————— __API以及事件能力__
 
@@ -250,6 +273,8 @@ token = "base64:QXV0aG9yOmNoYW5neWFubG9uZ3xudW1iZXJ3b2xmLEdpdGh1YjpodHRwczovL2dp
 #### 1）引入包
 
 * 用普通js(不编译)直接引入原始js文件
+	
+	* 简易Demo - 第一次使用看这里 <a href="index-debug.html">index-debug.html</a>
 
 	* demo: <a href="./example_normal">example_normal</a>
 
@@ -329,7 +354,8 @@ var config = {
 | \+ core  | Int | - | 否:默认0 | 0:默认播放内核 <br>1:备用播放内核 |
 | \+ coreProbePart  | Float32 | - | 否:默认1.0 | 探测Mp4媒体的属性，百分比 `0.0~1.0`,正常moov前置的文件都用0.1(10%)可以（只适用于备用播放内核) |
 | \+ ignoreAudio | Int | - | 否:默认0 | 0:带音频播放 <br>1:忽略音频播放 |
-| \+ probeSize | Int | - | 否:4096 | HTTP-FLV直播模式下的探测长度 |
+| \+ probeSize | Int | - | 否:默认4096 | HTTP-FLV直播模式下的探测长度 |
+| \+ autoPlay | Bool | true/false | 否:默认不开启 | 是否开启自动播放 <br>HTTP-FLV 265+264<br>HTTP-TS 265+264<br>HLS 264 |
 
 
 
@@ -380,7 +406,6 @@ var config = {
 
 		```javascript
 		let config = {
-		    type: "raw265",
 		    player: "glplayer",
 		    width: 960,
 		    height: 540,
@@ -431,7 +456,8 @@ var config = {
 		let player = H265webjsModule.createPlayer(videoURL, config);
 		```
 
-		* 3. 如果创建的是`raw265`类型的裸流数据播放 请注意
+		* 3. 如果创建的是`raw265`类型的Websocket等直播裸流数据播放 请注意
+			(普通265点播流直接填写url播放就可以，不需要走如下流程)
 			> 这部分fetch请求网络数据以及异步喂数据的过程 请自行改写,下面给出的仅仅是一个demo,网络IO和解析265流为帧数据会非常耗时。
 			>   
 			> 如果你可以通过websocket直接一帧一帧传输的话，那么只需要调用喂265数据的函数即可。
@@ -647,6 +673,17 @@ player.onCloseFullScreen = () => {
 };
 ```
 
+#### 播放器播放状态 ####
+
+* 示例
+
+```javascript
+player.onPlayState = (state) => {
+    // state
+    // true: playing / false: paused
+};
+```
+
 
 <br>
 
@@ -837,6 +874,36 @@ player.closeFullScreen();
 
 <br>
 
+
+
+
+#### 逐帧播放 ####
+
+|  调用函数 | 返回 | 说明 |
+|  ----  | ----  | ---- |
+| playNextFrame()  | - | 逐帧播放 播放下一帧 |
+
+<br>
+
+
+#### 截取当前帧图像 ####
+
+|  调用函数 | 返回 | 说明 |
+|  ----  | ----  | ---- |
+| snapshot()  | - | 截取当前帧图像 |
+
+* 示例
+
+```javascript
+const snapCanvas = document.getElementById("snapshot-player"); // create canvas
+h265Object.snapshot(snapCanvas); // snapshot to canvas
+```
+
+<br>
+
+
+
+
 #### 释放播放器 ####
 
 |  调用函数 | 返回 | 说明 |
@@ -915,6 +982,37 @@ ffmpeg -ss 20 -t 10 -i ./res/xinxiaomen.mp4 \
 
 | 更新日志 | 内容 |
 | ---- | ---- |
+| 时间 | 2022/05/07 |
+| - | 0.点播内核错误优化 |
+| - | 1.265裸流点播流程优化，只需要填写url和rawFps即可播放 |
+| - | 2.支持MKV格式 |
+| 时间 | 2022/04/21 |
+| - | 0.播放器内核性能优化 |
+| 时间 | 2022/04/17 |
+| - | 更新开源协议<a href="LICENSE-Free_CN.MD">CYL_Free-1.0 LICENSE-Free_CN.MD</a> |
+| 时间 | 2022/04/14 |
+| - | 0.支持 MOV视频播放 |
+| - | 1.支持 HTTP-FLV/HTTP-TS/HLS 自动播放 |
+| - | 2.1080P MP4 点播 播放优化 |
+| - | 3.MP4 增加嗅探失败重试 |
+| - | 4.支持 AV1 播放 |
+| - | 5.支持 逐帧播放 |
+| - | 6.支持 视频截图 |
+| 时间 | 2022/03/28 |
+| - | 0.支持MPEG-PS(MPEG1)标准视频播放 |
+| 时间 | 2022/03/02 |
+| - | 0.解决h264 FLV 部分有问题的流会出现频繁请求重试问题,兼容 |
+| 时间 | 2022/01/17 |
+| - | 0.解决ISSUE HLS 265内存泄露问题 https://github.com/numberwolf/h265web.js/issues/108  <img src="resource/mem-hls.jpg" width="300px"> |
+| - | 1.解决ISSUE HLS Split Rules https://github.com/numberwolf/h265web.js/issues/105 |
+| - | 2.增加新Demo <a href="index-debug.html">index-debug.html</a> |
+| - | 3.解决10+窗口264播放引起堆栈异常 |
+| 时间 | 2021/12/31 |
+| - | 0.增加 H.264 HTTP-FLV 失败后Retry |
+| 时间 | 2021/12/24 |
+| - | 0.修复 H.264 HTTP-FLV 部分流无回调问题 |
+| 时间 | 2021/12/19 |
+| - | 0.修复 H.264 HLS 回调不响应的问题 |
 | 时间 | 2021/12/08 |
 | - | 0.修复 H.264 MP4 onReadyShowDone回调问题 |
 | 时间 | 2021/12/04 - 凌晨 |

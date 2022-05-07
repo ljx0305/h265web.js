@@ -1,5 +1,5 @@
 /********************************************************* 
- * LICENSE: GPL-3.0 https://www.gnu.org/licenses/gpl-3.0.txt
+ * LICENSE: LICENSE-Free_CN.MD
  * 
  * Author: Numberwolf - ChangYanlong
  * QQ: 531365872
@@ -96,7 +96,8 @@ module.exports = () => {
 			}
         }
 
-        // console.warn("IDR Buffer 2:", bufferModule.idrIdxBuffer);
+        console.log("nalu IDR Buffer 2:", 
+        	bufferModule.videoBuffer, bufferModule.idrIdxBuffer);
 
         return true;
 	};

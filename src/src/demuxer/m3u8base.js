@@ -1,5 +1,5 @@
 /********************************************************* 
- * LICENSE: GPL-3.0 https://www.gnu.org/licenses/gpl-3.0.txt
+ * LICENSE: LICENSE-Free_CN.MD
  * 
  * Author: Numberwolf - ChangYanlong
  * QQ: 531365872
@@ -267,6 +267,19 @@ class M3u8BaseParserModule {
 				if (mediaFile.indexOf("http") >= 0) {
 					mediaURI = mediaFile;
 				} else {
+					// compatible -> /xxx/sss absolute path
+					if (mediaFile[0] === '/') {
+						const httpHostSplit = this._preURI.split("//");
+						const hostSplit = httpHostSplit[httpHostSplit.length-1].split('/'); // remove http
+						this._preURI = "";
+						for (let httpHostSplitIdx = 0; 
+							httpHostSplitIdx < httpHostSplit.length; 
+							httpHostSplitIdx++) 
+						{
+							this._preURI += httpHostSplit[httpHostSplitIdx];
+						} // end for httpHostSplitIdx
+						this._preURI += hostSplit[0];
+					}
 					mediaURI = this._preURI + mediaFile;
 				}
 
