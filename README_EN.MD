@@ -1,4 +1,4 @@
-# h265web.js - Will support HDR10!
+# h265web.js - Support Hard-Decode
 
 <a href="README.MD">中文</a> | <a href="README_EN.MD">English</a>
 
@@ -35,8 +35,15 @@ A hevc/h.265 web player, easy to play 1080P. `~^_^~ For love` if <a href="https:
 | <img src="resource/icon-ts.png" width="100"> | <img src="resource/icon-mpegps.png" width="100"> | <img src="resource/icon-av1.png" width="100"> | <img src="resource/icon-mov-h265.png" width="100">|
 | MPEG-TS(VOD) | MPEG-PS(VOD) | AV1(Chrome) | MOV(H.265) |
 | <br> | <br> | <br> | <br> |
-| <img src="resource/icon-hevc.png" width="100"> | <img src="resource/icon-mkv.png" width="100"><br> | <img src="resource/icon-todo.png" width="100"> | <img src="resource/icon-todo.png" width="100"><br> |
-| HTTP-HEVC | MKV(HEVC) | G711A | HDR10(BT2020) |
+| <img src="resource/icon-hevc.png" width="100"> | <img src="resource/icon-websockethevc.png" width="100"> | <img src="resource/icon-mkv.png" width="100"><br> | <img src="resource/icon-aac.png" width="100"> |
+| HTTP-HEVC | WS-HEVC | MKV(HEVC) | AAC(MAIN/LC) |
+| <br> | <br> | <br> | <br> |
+| <img src="resource/icon-thread.png" width="100"> | <img src="resource/icon-single-thread.png" width="100"> | <img src="resource/icon-pcm.png" width="100"> | <img src="resource/icon-pcm.png" width="100"> | <img src="resource/icon-mediainfo.png" width="100">  |
+| Multi-Thread<br><font color="red">(only:<br>https+nginx conf)</font> | Single-Thread | G711A(HTTP-FLV) | G711U(HTTP-FLV) |
+| <br> | <br> | <br> | <br> |
+| <img src="resource/icon-mediainfo.png" width="100"> | <img src="resource/icon-hevc-s.png" width="100"> | <img src="resource/icon-avc-s.png" width="100"> | <img src="resource/icon-hdecode.png" width="100"> |
+| MediaInfo | HEVC/H.265 | AVC/H.264 | Hardware decoder<br>(FLV/HTTP-FLV/MP4) |
+
 
 </font>
 </strong>
@@ -45,14 +52,15 @@ A hevc/h.265 web player, easy to play 1080P. `~^_^~ For love` if <a href="https:
 
 * Github: https://github.com/numberwolf/h265web.js
 * Email: porschegt23@foxmail.com
-* <strong><font color="red">QQ: 531365872</font></strong>
+* <strong><font color="red">QQ Group Number: 925466059(recommand)</font></strong>
+* <strong>QQ: 531365872</strong>
 * Discord:numberwolf#8694
 * Wechat:numberwolf11
 
 #### Online DEMO <a href="https://www.zzsin.com/h265webjs.html"> h265webjs.html (Demo is not newest version, you need to download from github and get newest version)
 </a>
 
-#### Simple Demo - for first use <a href="index-debug.html">index-debug.html</a>
+#### First Demo - for first use <a href="index-debug.html">index-debug.html</a>
 
 | h265web.js | mpeg.js `(ts demuxer)` | h265web.js's H.265 decoder | LICENSE |
 | ---- | ---- | ---- | ---- |
@@ -76,7 +84,7 @@ Notice：
 
 ## Index
 
-- [Update Log](#upldatelog)
+- [Update Log](#updatelog)
 
 - [0、README](#0readme)
 
@@ -148,7 +156,13 @@ Notice：
 
 		- [Play frame by frame(next frame)](#nextframe)
 
+		- [Resize](#resize)
+
 		- [Snapshot](#snapshot)
+
+		- [SetPlayRate](#setplayrate)
+
+		- [GetPlayRate](#getplayrate)
 
 		- [Release Player](#release)
 
@@ -186,6 +200,9 @@ Notice：
 | flv | Video on demand |  Y  | ---- |
 | http-flv | Live |  Y  | CodecID=12 |
 | http-ts | Live |  Y  | ---- |
+| http-hevc | Live |  Y  | ---- |
+| http-hevc | Video on demand |  Y  | ---- |
+| websocket-hevc | Live |  Y  | ---- |
 | websocket-flv | Live |  Y  | ---- |
 | websocket-ts | Live |  Y  | ---- |
 | HEVC/H.265 | Video on demand |  Y  | ---- |
@@ -193,11 +210,23 @@ Notice：
 | AVC/H.264 | Video on demand |  Y  | ---- |
 | AVC/H.264 | Live |  Y  | ---- |
 
+* Codec
+
+| Codec | Support | Desc |
+| ---- |  ----  | ---- |
+| AVC/H.264 |  Y  | ---- |
+| HEVC/H.265 |  Y  | ---- |
+| AAC |  Y  | ---- |
+| G711A |  Y  | HTTP-FLV |
+| G711U |  Y  | HTTP-FLV |
+| AV1 |  Y  | Chrome |
+
 
 * Features
 
-|  Feature | support | desc |
+|  Feature | Support | Desc |
 | ---- | ---- |  ----  |
+| Hardware-Decode | Y | For Chrome/Safari etc... |
 | Video on demand | Y |  ----  |
 | Live | Y |  ----  |
 | Seek | Y | ----  |
@@ -219,6 +248,18 @@ Notice：
 | Play frame by frame | Y |  ----  |
 | Snapshot | Y |  ----  |
 | Autoplay | Y |  HTTP-FLV 265+264<br>HTTP-TS 265+264<br>HLS 264  |
+| Cache Length | Y | MP4 265 |
+| Multi-thread decoder | Y | (HTTPS+ Conf NGINX) |
+| Single-thread decoder | Y | compatible |
+| Get MediaInfo | Y | ---- |
+| Get Codec Param | Y | Video&Audio |
+| Get Media Duration | Y | Video&Audio |
+| Get Video Size | Y | ---- |
+| Get Video FPS | Y | ---- |
+| Get Audio SampleRate | Y | ---- |
+| Chase Frame | Y | HTTP-FLV(no audio) |
+| PlayBackRate | Y | H.264/AV1 |
+| Resize | Y | ---- |
 
 <br>
 
@@ -266,6 +307,10 @@ Simple Demo - First <a href="index-debug.html">index-debug.html</a>
 > * <h4> Warning: Do not install from npm store! Please download from Github！ Because npm store is not friendly with Webassembly!</h4>
 
 > * <h4> Warning: Put the .wasm file into `webpack`/`browerify`'s dist Directory! If wasm's path is not same with `webpack`/`browerify`'s dist file's path, you can not running with it！！！Or you can include with this github's dist/\*.js and dist/missile\*.wasm</h4>
+
+```bash
+bash init.sh
+```
 
 #### 1）Install SDK Package
 
@@ -348,6 +393,7 @@ let config = {
 | \+ ignoreAudio | Int | - | N:Default is 0 | 0:Play with audio <br>1:Without audio |
 | \+ probeSize | Int | - | N:4096 | HTTP-FLV(LIVE) Mode's probe size, default is 4096 |
 | \+ autoPlay | Bool | true/false | N:false | Open autoplay <br>HTTP-FLV 265+264<br>HTTP-TS 265+264<br>HLS 264 |
+| \+ cacheLength | Int | [5, ∞+] | N:Default is 50 frames | Set cache frame count by manual <br>MP4 265 |
 
 
 <br>
@@ -458,68 +504,25 @@ let config = {
 		* 3. NOTICE! If you want to create `raw265` stream player
 			(Do not need execute with this step when you play 265 vod stream)
 
-			* `raw265` type，feed byte data
-
-			Function
-
-			|  Function | Return | Desc | 
-			|  ----  | ----  | ---- |
-			| append265NaluFrame  | NULL | Feed H.265 nalu-frame (bytes) |
-
-			Params
-
-			| Param | Type | Default | Require | Desc | 
-			|  ----  | ----  | ---- | ---- | ---- |
-			| frame  | Uint8Array | - | Y | Bytes |
-
-			Example - I get a hevc file by network, and get bytes data to player.
+			* Add `raw265` type, and set `rawFps` for player's fps
 
 			```javascript
-			//
-		    // fetch 265
-		    // you can use your code to fetch vod stream
-		    // only need `h265webjs.append265NaluFrame(nalBuf);` to append 265 frame
-		    //
-		    let rawParser = new RawParserModule();
-
-		    let fetchFinished = false;
-		    let startFetch = false;
-		    let networkInterval = window.setInterval(() => {
-		        if (!startFetch) {
-		            startFetch = true;
-		            fetch(url265).then(function(response) {
-		                let pump = function(reader) {
-		                    return reader.read().then(function(result) {
-		                        if (result.done) {
-		                            // console.log("========== RESULT DONE ===========");
-		                            fetchFinished = true;
-		                            window.clearInterval(networkInterval);
-		                            networkInterval = null;
-		                            return;
-		                        }
-		                        let chunk = result.value;
-		                        rawParser.appendStreamRet(chunk);
-		                        return pump(reader);
-		                    });
-		                }
-		                return pump(response.body.getReader());
-		            })
-		            .catch(function(error) {
-		                console.log(error);
-		            });
-		        }
-		    }, 1);
-
-		    // fps>=30 play else cache
-		    let naluParseInterval = window.setInterval(() => {
-		        if (nalBuf != false) {
-		            // require
-		            h265webjs.append265NaluFrame(nalBuf);
-		        } else if (fetchFinished) {
-		            window.clearInterval(naluParseInterval);
-		            naluParseInterval = null;
-		        }
-		    }, 1);
+			config = {
+                type: 'raw265',
+                player: "glplayer",
+                width: 960,
+                height: 540,
+                // accurateSeek : true,
+                token : token,
+                extInfo : {
+                    rawFps: 24,
+                    moovStartFlag : true,
+                    coreProbePart : 0.1,
+                    ignoreAudio : 0,
+                    probeSize : 8192,
+                    autoPlay : true,
+                }
+            };
 			```
 	
 
@@ -870,10 +873,45 @@ player.closeFullScreen();
 
 |  Function | Return | Desc |
 |  ----  | ----  | ---- |
-| playNextFrame()  | - | play next frame |
+| playNextFrame()  | true/false | play next frame |
 
 <br>
 
+#### setplayrate ####
+
+| Function | Return | Desc |
+|  ----  | ----  | ---- |
+| setPlaybackRate(rate)  | true/false | 设置倍速 默认1.0 |
+
+* 示例
+
+```javascript
+h265Object.setPlaybackRate(0.5);
+```
+
+<br>
+
+#### getplayrate ####
+
+| Function | Return | Desc |
+|  ----  | ----  | ---- |
+| getPlaybackRate()  | Double | 截取当前帧图像 |
+
+* 示例
+
+```javascript
+let rate = h265Object.getPlaybackRate();
+```
+
+<br>
+
+#### resize ####
+
+| Function | Return | Desc |
+| ---- | ---- | ----|
+| resize(width, height) | true/false | resize |
+
+<br>
 
 #### snapshot ####
 
@@ -910,8 +948,7 @@ player.release();
 
 |  Wechat | Alipay | PayPal |
 |  ---- | ----  | ---- |
-| <img src="dist/assets/donate/wechat.JPG" height="500"> | <img src="dist/assets/donate/alipay.JPG" height="500"> | TODO |
-
+| <img src="resource/donate/wechat.JPG" height="500"> | <img src="resource/donate/alipay.JPG" height="500"> | TODO |
 <br>
 
 ### FFmpegSupportH265LiveEncode ###
@@ -929,7 +966,7 @@ ffmpeg -i input.mp4 \
 -vcodec libx265 -pix_fmt \
 -acodec aac -ac 2 -ar 44100 \
 -preset medium -maxrate 1000k -bufsize 1000k \
--vtag hev1 \
+-vtag hvc1 \
 -movflags faststart \
 -y video.mp4
 ```
@@ -963,10 +1000,49 @@ ffmpeg -ss 20 -t 10 -i ./res/xinxiaomen.mp4 \
 
 <br>
 
-# UpldateLog #
+# UpdateLog #
 
 | Update | Content |
 | ---- | ---- |
+| Time | 2022/11/06 |
+| - | 0.Update |
+| Time | 2022/11/02 |
+| - | 0.Update WASM |
+| Time | 2022/10/22 |
+| - | 0.Support: Hard-Decode for FLV/HTTP-FLV/MP4 |
+| - | 1.Support: AVC with Mpeg-TS |
+| Time | 2022/09/13 |
+| - | 0.Fixed: AVC stream loop buffer error without autoplay |
+| Time | 2022/09/12 |
+| - | 0.Fixed: hevc url cannot play without text of "http" |
+| Time | 2022/08/24 |
+| - | 0.Feature: Safari with native player(version>13) |
+| Time | 2022/08/23 |
+| - | 0.Fixed: Buffer Progress with AVC |
+| Time | 2022/08/13 |
+| - | 0.Support: Resize |
+| Time | 2022/07/27 |
+| - | 0.Support: PlayBackRate |
+| Time | 2022/07/12 |
+| - | 0.Fixed some problem |
+| Time | 2022/07/06-10 |
+| - | 0.Support g711u (http-flv) |
+| - | 1.Fixed: HTTP-FLV(AVC) without Audio |
+| Time | 2022/07/01 |
+| - | 0.Feature: HTTP-FLV(Without audio) Stream Performance optimizing |
+| Time | 2022/06/27 |
+| - | 0.Fixed: problem with hls parser |
+| Time | 2022/06/26 |
+| - | 0.Support g711a (http-flv) |
+| - | 1.Fixed 264(avc) flv error with mediainfo |
+| - | 2.Support Multi/Single Thread |
+| Time | 2022/05/18 |
+| - | 0.Support multi-thread decode |
+| - | 1.Support mp4's cache length config |
+| - | 2.Performance optimizing |
+| - | 3.This version is for Beta |
+| Time | 2022/05/09 |
+| - | 0.Suport play with Websocket 265 raw stream |
 | Time | 2022/05/07 |
 | - | 0.Fixed:MP4(VOD) retry error |
 | - | 1.Support:HEVC raw stream(VOD), create with url |
